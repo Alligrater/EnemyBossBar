@@ -23,6 +23,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
@@ -51,7 +52,6 @@ public class AttackListener implements Listener{
 				}
 				
 				LivingEntity target = (LivingEntity)event.getEntity();
-				boolean instakill = false;
 				if(!Enemies.containsKey(player.getName())) {
 					if(target.getHealth() - event.getDamage() > 0) {
 						String name = "";
@@ -68,6 +68,21 @@ public class AttackListener implements Listener{
 						Enemies.put(player.getName(), b);
 					}
 					else {
+						String name = "";
+						if(target.getCustomName() != null) {
+							name = target.getCustomName();
+						}
+						else {
+							name = target.getName();
+						}
+						BossBar b = Bukkit.createBossBar(name, BarColor.RED, BarStyle.SEGMENTED_10, new BarFlag[0]);
+						b.setProgress((target.getHealth())/target.getMaxHealth());
+						b.setVisible(true);
+						b.addPlayer(player);
+						Enemies.put(player.getName(), b);
+					}
+					/*
+					else {
 						double percentage = target.getHealth()/target.getMaxHealth()*100;
 						String name = "";
 						if(target.getCustomName() != null) {
@@ -77,20 +92,21 @@ public class AttackListener implements Listener{
 							name = target.getName();
 						}
 						BossBar b = Bukkit.createBossBar(name, BarColor.GREEN, BarStyle.SEGMENTED_10, new BarFlag[0]);
+						b.setTitle(String.format("%s%s ▪ [0%s]", name, "§7", "%"));
 						b.setProgress(target.getHealth()/target.getMaxHealth());
 						
 						if(percentage <= 100) {
 							if(percentage > 62) {
 								b.setColor(BarColor.GREEN);
 							}
-							else if(percentage > 25) {
+							else if(percentage > 21) {
 								b.setColor(BarColor.YELLOW);
 							}
-							else {
+							else if(percentage <= 21){
 								b.setColor(BarColor.RED);
 							}
 						}
-						
+
 						BukkitRunnable reduction = new BukkitRunnable() {
 							@Override
 							public void run() {
@@ -100,9 +116,9 @@ public class AttackListener implements Listener{
 						};
 						
 						reduction.runTaskLater(Bukkit.getPluginManager().getPlugin("EnemyBossBar"), 1);
+						
 						b.setVisible(true);
 						b.addPlayer(player);
-						instakill = true;
 						BukkitRunnable task = new BukkitRunnable() {
 							@Override
 							public void run() {
@@ -112,7 +128,7 @@ public class AttackListener implements Listener{
 						};
 						
 						task.runTaskLater(Bukkit.getPluginManager().getPlugin("EnemyBossBar"), 3);
-					}
+					}*/
 
 					
 					
@@ -134,10 +150,12 @@ public class AttackListener implements Listener{
 						}
 					}
 				}
-
-				if(!instakill) {
+				
+				
+				//if(!instakill) {
 					Engaging.put(player.getName(), target.getUniqueId());
-				}
+				//}
+				
 
 				
 				if(Active.containsKey(player.getName())) {
@@ -189,7 +207,7 @@ public class AttackListener implements Listener{
 							double health = target.getHealth() - event.getFinalDamage();
 							double percentage = health/target.getMaxHealth()*100;
 							BossBar b = Enemies.get(s);
-							String colorcode = "§a";
+							String colorcode = "§7";
 							if(health > 0) {
 								if(percentage > 62) {
 									b.setColor(BarColor.GREEN);
@@ -207,18 +225,16 @@ public class AttackListener implements Listener{
 								b.setProgress((health)/target.getMaxHealth());
 							}
 							else {
-								
-								b.setProgress(0.0);
-								BukkitRunnable task = new BukkitRunnable() {
-									@Override
-									public void run() {
-										b.removePlayer(Bukkit.getPlayer(s));
-									}
-								};
-								
-								task.runTaskLater(Bukkit.getPluginManager().getPlugin("EnemyBossBar"), 3);
-								players.add(s);
-
+								double perc = target.getHealth()/target.getMaxHealth()*100;
+								if(perc > 62) {
+									b.setColor(BarColor.GREEN);
+								}
+								else if(perc > 21) {
+									b.setColor(BarColor.YELLOW);
+								}
+								else {
+									b.setColor(BarColor.RED);
+								}
 							}
 							
 							
@@ -233,6 +249,50 @@ public class AttackListener implements Listener{
 			}
 		}
 
+	}
+	
+	@EventHandler
+	public void onEntityDeath(EntityDeathEvent event) {
+		if(event.getEntity() instanceof LivingEntity) {
+			LivingEntity target = (LivingEntity)event.getEntity();
+			if(Engaging.containsValue(target.getUniqueId())) {
+				List<String> players = new ArrayList<String>();
+				for(String s:Engaging.keySet()) {
+					if(Engaging.get(s).equals(target.getUniqueId())) {
+						if(Enemies.containsKey(s)) {
+							String name = "";
+							if(target.getCustomName() != null) {
+								name = target.getCustomName();
+							}
+							else {
+								name = target.getName();
+							}
+							BossBar b = Enemies.get(s);
+							String colorcode = "§7";
+							b.setTitle(String.format("%s%s ▪ [%s%s]", name, colorcode, 0, "%"));
+							b.setProgress(0.0);
+							BukkitRunnable task = new BukkitRunnable() {
+								@Override
+								public void run() {
+									b.removePlayer(Bukkit.getPlayer(s));
+								}
+							};
+							
+							task.runTaskLater(Bukkit.getPluginManager().getPlugin("EnemyBossBar"), 3);
+							
+							
+							players.add(s);
+						}
+
+					}
+				}
+				for(String s: players) {
+					Enemies.remove(s);
+					Engaging.remove(s);
+				}
+			}
+			
+		}
 	}
 	
 	@EventHandler
@@ -272,7 +332,7 @@ public class AttackListener implements Listener{
 									b.setColor(BarColor.GREEN);
 									colorcode = "§a";
 								}
-								else if(percentage > 25) {
+								else if(percentage > 21) {
 									b.setColor(BarColor.YELLOW);
 									colorcode = "§e";
 								}
@@ -297,31 +357,6 @@ public class AttackListener implements Listener{
 		}
 	}
 	
-	/*
-	@EventHandler
-	public void onMove(PlayerMoveEvent event) {
-		if(Engaging.containsKey(event.getPlayer().getName()) && event.getPlayer().getInventory().getItemInMainHand().getType() != Material.BOW) {
-			Player player = event.getPlayer();
-			World world = player.getWorld();
-			Entity target = null;
-			for(Entity e : world.getLivingEntities()) {
-				if(e.getUniqueId().equals(Engaging.get(player.getName()))) {
-					target = e;
-				}
-			}
-			if(target != null) {
-				if(target.getLocation().distance(event.getTo()) > 15) {
-					Engaging.remove(player.getName());
-					if(Enemies.containsKey(player.getName())) {
-						BossBar b = Enemies.get(player.getName());
-						b.removePlayer(player);
-						Enemies.remove(player.getName());
-					}
-				}
-			}
-		}
-	}
-	*/
 	
 
 }
